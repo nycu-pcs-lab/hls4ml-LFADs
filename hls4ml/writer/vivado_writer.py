@@ -125,8 +125,13 @@ class VivadoWriter(Writer):
             if 'myproject' in line:
                 newline = line.replace('myproject', model.config.get_project_name())
             elif '// hls-fpga-machine-learning insert header' in line:
-                inputs_str = ', '.join([i.definition_cpp(as_reference=True) for i in model_inputs])
-                outputs_str = ', '.join([o.definition_cpp(as_reference=True) for o in model_outputs])
+                if model.config.get_config_value("IOType") == 'io_array_stream':
+                    print(model_inputs[0])
+                    inputs_str = ', '.join([i.definition_cpp() for i in model_inputs])
+                    outputs_str = ', '.join([o.definition_cpp() for o in model_outputs])
+                else:
+                    inputs_str = ', '.join([i.definition_cpp(as_reference=True) for i in model_inputs])
+                    outputs_str = ', '.join([o.definition_cpp(as_reference=True) for o in model_outputs])
                 brams_str = ', \n'.join([indent + b.definition_cpp(as_reference=False) for b in model_brams])
 
                 newline = ''
@@ -525,9 +530,14 @@ class VivadoWriter(Writer):
                 newline = ''
                 for i in model_inputs:
                     newline += indent + '{var};\n'.format(var=i.definition_cpp(name_suffix='_ap'))
-                    newline += indent + 'nnet::convert_data<{}, {}, {}>({}, {}_ap);\n'.format(
-                        dtype, i.type.name, i.size_cpp(), i.name, i.name
-                    )
+                    if model.config.get_config_value("IOType") == 'io_array_stream':
+                        newline += indent + 'nnet::convert_data<{}, {}, {}, {}>({}, {}_ap);\n'.format(
+                            dtype, i.type.name, i.shape[-1], i.size_cpp()+'/'+str(i.shape[-1]), i.name, i.name
+                        )
+                    else:
+                        newline += indent + 'nnet::convert_data<{}, {}, {}>({}, {}_ap);\n'.format(
+                            dtype, i.type.name, i.size_cpp(), i.name, i.name
+                        )
                 newline += '\n'
 
                 for o in model_outputs:
@@ -548,9 +558,14 @@ class VivadoWriter(Writer):
                 newline += '\n'
 
                 for o in model_outputs:
-                    newline += indent + 'nnet::convert_data<{}, {}, {}>({}_ap, {});\n'.format(
-                        o.type.name, dtype, o.size_cpp(), o.name, o.name
-                    )
+                    if model.config.get_config_value("IOType") == 'io_array_stream':
+                        newline += indent + 'nnet::convert_data<{}, {}, {}, {}>({}_ap, {});\n'.format(
+                            o.type.name, dtype, o.shape[-1], o.size_cpp()+'/'+str(o.shape[-1]), o.name, o.name
+                        )
+                    else:
+                        newline += indent + 'nnet::convert_data<{}, {}, {}>({}_ap, {});\n'.format(
+                            o.type.name, dtype, o.size_cpp(), o.name, o.name
+                        )
             elif '// hls-fpga-machine-learning insert trace_outputs' in line:
                 newline = ''
                 for layer in model.get_layers():

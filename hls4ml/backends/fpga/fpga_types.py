@@ -453,6 +453,60 @@ class BramWeightVariableConverter:
         weight_var.storage = 'bram'
         return weight_var
 
+class VivadoArrayStreamVariableDefinition(VariableDefinition):
+    def definition_cpp(self, name_suffix='', as_reference=False):
+        return 'hls::stream<{type}> {name}{suffix}[{shape}]'.format(
+            type=self.type.name, name=self.name, suffix=name_suffix, shape=self.shape[-1]
+            )
+    
+class VivadoInplaceArrayStreamVariableDefinition(VariableDefinition):
+    def definition_cpp(self):
+        return f'auto& {self.name} = {self.input_var.name}'
+       
+class ArrayStreamVariableConverter:
+    def __init__(self, type_converter, prefix, definition_cls):
+        self.type_converter = type_converter
+        self.prefix = prefix
+        self.definition_cls = definition_cls
+
+    def convert(self, tensor_var, n_pack=1, depth=0):
+        if isinstance(tensor_var, self.definition_cls):  # Already converted
+            return tensor_var
+
+        if depth == 0:
+            depth = np.prod(tensor_var.shape) // tensor_var.shape[-1]
+        tensor_var.pragma = ('stream', depth)
+        tensor_var.type = self.type_converter.convert(
+            NamedType(tensor_var.type.name, tensor_var.type.precision)
+        )
+        tensor_var.n_pack = n_pack
+
+        tensor_var.__class__ = type(self.prefix + 'ArrayStreamVariable', (type(tensor_var), self.definition_cls), {})
+        return tensor_var
+
+class InplaceArrayStreamVariableConverter(ArrayStreamVariableConverter):
+    def convert(self, tensor_var, n_pack=1):
+        if isinstance(tensor_var, self.definition_cls):  # Already converted
+            return tensor_var
+
+        tensor_var.pragma = None
+        tensor_var.type = self.type_converter.convert(
+            NamedType(tensor_var.type.name, tensor_var.type.precision)
+        )
+        tensor_var.n_pack = n_pack
+        tensor_var.__class__ = type(self.prefix + 'ArrayStreamVariable', (type(tensor_var), self.definition_cls), {})
+        return tensor_var
+
+class VivadoInplaceArrayStreamVariableConverter(InplaceArrayStreamVariableConverter):
+    def __init__(self, type_converter):
+        super().__init__(
+            type_converter=type_converter, prefix='Vivado', definition_cls=VivadoInplaceArrayStreamVariableDefinition
+        )
+
+class VivadoArrayStreamVariableConverter(ArrayStreamVariableConverter):
+    def __init__(self, type_converter):
+        super().__init__(type_converter=type_converter, prefix='Vivado', definition_cls=VivadoArrayStreamVariableDefinition)
+
 
 # endregion
 

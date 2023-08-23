@@ -149,7 +149,7 @@ void lstm_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate
     nnet::dense<data_T, typename CONFIG_T::accum_t, typename CONFIG_T::mult_config1>(data, tmpres, param, param_b);
     nnet::dense<res_T, typename CONFIG_T::accum_t, typename CONFIG_T::mult_config2>(h_state, tmpres_state, param_r,
                                                                                     param_br);
-
+    
     for (int iacc = 0; iacc < (3 * CONFIG_T::n_state); iacc++) {
         #pragma HLS UNROLL
         int index = iacc;
@@ -322,6 +322,31 @@ struct gru_config {
     template <class x_T, class y_T, class config_T> using activation = nnet::activation::relu<x_T, y_T, config_T>;
 };
 
+struct qgru_config {
+    // Internal data type definitions
+    typedef float weight_t;
+    typedef float bias_t;
+    typedef float accum_t;
+
+    // Layer Sizes
+    static const unsigned n_in = 2;
+    static const unsigned n_out = 2;
+    static const unsigned n_state = 2;
+    static const unsigned n_sequence = 2;
+    static const unsigned n_4state = 8;
+    static const unsigned table_size = 1024;
+
+    // Resource reuse info
+    static const unsigned io_type = io_parallel;
+    static const unsigned reuse_factor = 1;
+    static const bool store_weights_in_bram = false;
+    static const bool use_static = true;
+    static const unsigned n_zeros = 0;
+
+    template <class x_T, class y_T, class config_T> using activation_recr = nnet::activation::relu<x_T, y_T, config_T>;
+    template <class x_T, class y_T, class config_T> using activation = nnet::activation::relu<x_T, y_T, config_T>;
+};
+
 template <class data_T, class res_T, typename CONFIG_T>
 void gru(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[CONFIG_T::n_state],
          typename CONFIG_T::weight_t param[CONFIG_T::n_state * 3 * CONFIG_T::n_in], // TODO - Check the layout of the param
@@ -333,8 +358,8 @@ void gru(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[CONFIG_
     typename CONFIG_T::accum_t tmpres[CONFIG_T::n_state * 3];
     typename CONFIG_T::accum_t tmpres_state_zr[CONFIG_T::n_state * 3];
     typename CONFIG_T::accum_t tmpres_state_h[CONFIG_T::n_state];
-    typename CONFIG_T::accum_t tmpres_zr[CONFIG_T::n_state * 2];   // activated i,f,o matrices (keras notation)
-    typename CONFIG_T::accum_t tmpres_h[CONFIG_T::n_state];        // activated c-matrix (keras notation)
+    res_T tmpres_zr[CONFIG_T::n_state * 2];   // activated i,f,o matrices (keras notation)
+    res_T tmpres_h[CONFIG_T::n_state];        // activated c-matrix (keras notation)
     typename CONFIG_T::accum_t inputacc_zr[CONFIG_T::n_state * 2]; // i,f,o matrices (keras notation)
     typename CONFIG_T::accum_t inputacc_h[CONFIG_T::n_state];      // c-matrix (keras notation)
 
@@ -360,7 +385,7 @@ void gru(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[CONFIG_
     }
 
     // Activation function Sub layer -- START
-    CONFIG_T::template activation_recr<typename CONFIG_T::accum_t, typename CONFIG_T::weight_t,
+    CONFIG_T::template activation_recr<typename CONFIG_T::accum_t, res_T,
                                        typename CONFIG_T::ACT_CONFIG_GRU>::activation(inputacc_zr, tmpres_zr);
 
     // Activation function Sub layer -- END
@@ -379,7 +404,7 @@ void gru(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[CONFIG_
     }
 
     // Now run the activation on this guy
-    CONFIG_T::template activation<typename CONFIG_T::accum_t, typename CONFIG_T::weight_t,
+    CONFIG_T::template activation<typename CONFIG_T::accum_t, res_T,
                                   typename CONFIG_T::ACT_CONFIG_T>::activation(inputacc_h, tmpres_h);
 
     // Mix the stat with the previous state
@@ -398,13 +423,15 @@ void gru_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[
     // Initialize the state variable -- will maintain state between function calls
 
     static res_T h_state[CONFIG_T::n_state];
-    typename CONFIG_T::accum_t tmpres[CONFIG_T::n_state * 3];
-    typename CONFIG_T::accum_t tmpres_state_zr[CONFIG_T::n_state * 3];
+    typename CONFIG_T::accum_dense_t tmpres[CONFIG_T::n_state * 3];
+    typename CONFIG_T::accum_dense_t tmpres_state_zr[CONFIG_T::n_state * 3];
     typename CONFIG_T::accum_t tmpres_state_h[CONFIG_T::n_state];
-    typename CONFIG_T::accum_t tmpres_zr[CONFIG_T::n_state * 2];   // activated i,f,o matrices (keras notation)
-    typename CONFIG_T::accum_t tmpres_h[CONFIG_T::n_state];        // activated c-matrix (keras notation)
-    typename CONFIG_T::accum_t inputacc_zr[CONFIG_T::n_state * 2]; // i,f,o matrices (keras notation)
+    typename CONFIG_T::recr_act_t tmpres_zr[CONFIG_T::n_state * 2];   // activated i,f,o matrices (keras notation)
+    typename CONFIG_T::act_t tmpres_h[CONFIG_T::n_state];        // activated c-matrix (keras notation)
+    typename CONFIG_T::accum_dense_t inputacc_zr[CONFIG_T::n_state * 2]; // i,f,o matrices (keras notation)
     typename CONFIG_T::accum_t inputacc_h[CONFIG_T::n_state];      // c-matrix (keras notation)
+
+    typename CONFIG_T::state_t qh_state[CONFIG_T::n_state];
 
     #pragma HLS ARRAY_PARTITION variable=h_state         complete
     #pragma HLS ARRAY_PARTITION variable=h_newstate      complete
@@ -423,8 +450,13 @@ void gru_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[
         }
     }
 
-    nnet::dense<data_T, typename CONFIG_T::accum_t, typename CONFIG_T::mult_config1>(data, tmpres, param, param_b);
-    nnet::dense<res_T, typename CONFIG_T::accum_t, typename CONFIG_T::mult_config2>(h_state, tmpres_state_zr, param_zr,
+    for (int i_h_state = 0; i_h_state < (CONFIG_T::n_state); i_h_state++) {
+        #pragma HLS UNROLL
+        qh_state[i_h_state] = (typename CONFIG_T::state_t) h_state[i_h_state];
+    }
+    
+    nnet::dense<data_T, typename CONFIG_T::accum_dense_t, typename CONFIG_T::mult_config1>(data, tmpres, param, param_b);
+    nnet::dense<typename CONFIG_T::state_t, typename CONFIG_T::accum_dense_t, typename CONFIG_T::mult_config2>(qh_state, tmpres_state_zr, param_zr,
                                                                                     param_br);
 
     // Adding the individual vectors from the multiplication of tmpres = Wx*x(t); tmpres_state_zr = Wh*h(t-1); tmpres
@@ -436,7 +468,7 @@ void gru_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[
     }
 
     // Activation function Sub layer -- START
-    CONFIG_T::template activation_recr<typename CONFIG_T::accum_t, typename CONFIG_T::weight_t,
+    CONFIG_T::template activation_recr<typename CONFIG_T::accum_dense_t, typename CONFIG_T::recr_act_t,
                                        typename CONFIG_T::ACT_CONFIG_GRU>::activation(inputacc_zr, tmpres_zr);
 
     // Activation function Sub layer -- END
@@ -455,16 +487,18 @@ void gru_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[
     }
 
     // Now run the activation on this guy
-    CONFIG_T::template activation<typename CONFIG_T::accum_t, typename CONFIG_T::weight_t,
+    CONFIG_T::template activation<typename CONFIG_T::accum_t, typename CONFIG_T::act_t,
                                   typename CONFIG_T::ACT_CONFIG_T>::activation(inputacc_h, tmpres_h);
 
     // Mix the stat with the previous state
     for (int iacc = 0; iacc < (CONFIG_T::n_state); iacc++) {
         #pragma HLS UNROLL
-        h_state[iacc] = (res_T)(tmpres_h[iacc] * (1 - tmpres_zr[iacc]) + h_state[iacc] * tmpres_zr[iacc]);
+        h_state[iacc] = (res_T)(tmpres_h[iacc] * (1 - tmpres_zr[iacc]) + qh_state[iacc] * tmpres_zr[iacc]);
         h_newstate[iacc] = h_state[iacc];
     }
 }
+
+
 
 template <class data_T, class res_T, typename CONFIG_T>
 void gru_stack(data_T data[CONFIG_T::n_sequence * CONFIG_T::n_in], res_T res[CONFIG_T::n_sequence_out * CONFIG_T::n_state],
@@ -484,6 +518,56 @@ void gru_stack(data_T data[CONFIG_T::n_sequence * CONFIG_T::n_in], res_T res[CON
         #pragma HLS UNROLL
         h_state[ii] = 0;
     }
+    for (int iloop = 0; iloop < CONFIG_T::n_sequence; iloop++) {
+        for (int j = 0; j < CONFIG_T::n_in; j++) {
+            #pragma HLS UNROLL
+            data_in[j] = data[j + iloop * CONFIG_T::n_in];
+        }
+        if (CONFIG_T::use_static)
+            nnet::gru_static<data_T, res_T, CONFIG_T>(reset_state, data_in, h_state, param, param_zr, param_b, param_br);
+        else
+            nnet::gru<data_T, res_T, CONFIG_T>(reset_state, data_in, h_state, param, param_zr, param_b, param_br);
+        if (CONFIG_T::n_sequence_out > 1)
+            for (int i = CONFIG_T::n_state * iloop, j = 0; i < (CONFIG_T::n_state * (iloop + 1)); i++, j++) {
+                #pragma HLS UNROLL
+                res[i] = h_state[j];
+            }
+        reset_state = false;
+    }
+    if (CONFIG_T::n_sequence_out == 1)
+        for (int i = 0; i < (CONFIG_T::n_state); i++) {
+            #pragma HLS UNROLL
+            res[i] = h_state[i];
+        }
+}
+
+//initial state
+template <class data_T, class init_T, class res_T, typename CONFIG_T>
+void gru_stack(data_T data[CONFIG_T::n_sequence * CONFIG_T::n_in], init_T initial_state[CONFIG_T::n_state], res_T res[CONFIG_T::n_sequence_out * CONFIG_T::n_state],
+               typename CONFIG_T::weight_t param[CONFIG_T::n_state * 3 * CONFIG_T::n_in],
+               typename CONFIG_T::weight_t param_zr[CONFIG_T::n_state * 3 * CONFIG_T::n_state],
+               typename CONFIG_T::bias_t param_b[CONFIG_T::n_state * 3],
+               typename CONFIG_T::bias_t param_br[CONFIG_T::n_state * 3]) {
+
+    res_T h_state[CONFIG_T::n_state];
+    data_T data_in[CONFIG_T::n_in];
+    bool reset_state = true;
+
+    #pragma HLS ARRAY_PARTITION variable=h_state complete
+    #pragma HLS ARRAY_PARTITION variable=data_in complete
+
+    if (CONFIG_T::use_initial==1){
+        for(int ii = 0; ii < CONFIG_T::n_state; ii++) {
+            #pragma HLS UNROLL
+            h_state[ii] = res_T(initial_state[ii]);
+        }
+    }else{
+        for(int ii = 0; ii < CONFIG_T::n_state; ii++) {
+            #pragma HLS UNROLL
+            h_state[ii] = 0;
+        }
+    }
+
     for (int iloop = 0; iloop < CONFIG_T::n_sequence; iloop++) {
         for (int j = 0; j < CONFIG_T::n_in; j++) {
             #pragma HLS UNROLL

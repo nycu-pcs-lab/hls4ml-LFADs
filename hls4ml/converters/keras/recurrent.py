@@ -1,11 +1,12 @@
 from hls4ml.converters.keras_to_hls import keras_handler, parse_default_keras_layer
 
 rnn_layers = ['SimpleRNN', 'LSTM', 'GRU']
+qrnn_layers = ['QSimpleRNN', 'QLSTM', 'QGRU']
 
 
 @keras_handler(*rnn_layers)
 def parse_rnn_layer(keras_layer, input_names, input_shapes, data_reader):
-    assert keras_layer['class_name'] in rnn_layers
+    assert keras_layer['class_name'] in rnn_layers + qrnn_layers
 
     layer = parse_default_keras_layer(keras_layer, input_names)
 
@@ -36,5 +37,9 @@ def parse_rnn_layer(keras_layer, input_names, input_shapes, data_reader):
 
     if layer['return_state']:
         raise Exception('"return_state" of {} layer is not yet supported.')
+    if (len(keras_layer.get('inbound_nodes',[[None]])[0]) > 1):
+        layer['initial_state'] = 1 # 1 for true, 0 for false
+    else:
+        layer['initial_state'] = 0
 
     return layer, output_shape

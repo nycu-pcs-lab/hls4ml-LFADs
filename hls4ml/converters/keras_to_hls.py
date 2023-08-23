@@ -54,11 +54,18 @@ class KerasModelReader:
     def get_weights_data(self, layer_name, var_name):
         layer = self.model.get_layer(layer_name)
         for i, w in enumerate(layer.weights):
-            if var_name in w.name:
-                try:
-                    return w.numpy()  # TF 2.x
-                except Exception:
-                    return layer.get_weights()[i]  # TF 1.x
+            if isinstance(var_name, str):
+                if var_name in w.name:
+                    try:
+                        return w.numpy()  # TF 2.x
+                    except Exception:
+                        return layer.get_weights()[i]  # TF 1.x
+            elif isinstance(var_name, list):
+                if all([var in w.name for var in var_name]):
+                    try:
+                        return w.numpy()  # TF 2.x
+                    except Exception:
+                        return layer.get_weights()[i]
 
         return None
 
@@ -266,14 +273,14 @@ def parse_keras_model(model_arch, reader):
             input_names = None
 
         layer, output_shape = layer_handlers[keras_class](keras_layer, input_names, input_shapes, reader)
-
+        print(layer)
         print(
             'Layer name: {}, layer type: {}, input shapes: {}, output shape: {}'.format(
                 layer['name'], layer['class_name'], input_shapes, output_shape
             )
         )
         layer_list.append(layer)
-        if 'activation' in layer and layer['class_name'] not in activation_layers + recurrent_layers:  # + qkeras_layers:
+        if 'activation' in layer and layer['class_name'] not in activation_layers + recurrent_layers + ['QGRU', 'QBidirectional']:  # + qkeras_layers:
             act_layer = {}
             # Workaround for QKeras activations passed as an argument
             if isinstance(layer['activation'], dict):
@@ -303,7 +310,6 @@ def parse_keras_model(model_arch, reader):
         assert output_shape is not None
 
         output_shapes[layer['name']] = output_shape
-
     return layer_list, input_layers, output_layers
 
 

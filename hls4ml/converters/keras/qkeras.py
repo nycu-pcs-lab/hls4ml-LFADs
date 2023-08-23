@@ -3,6 +3,7 @@ from qkeras.quantizers import get_quantizer
 from hls4ml.converters.keras.convolution import parse_conv1d_layer, parse_conv2d_layer
 from hls4ml.converters.keras.core import parse_batchnorm_layer, parse_dense_layer
 from hls4ml.converters.keras_to_hls import keras_handler, parse_default_keras_layer
+from hls4ml.converters.keras.recurrent import parse_rnn_layer
 from hls4ml.model.types import FixedPrecisionType, QKerasBinaryQuantizer, QKerasPO2Quantizer, QKerasQuantizer
 
 
@@ -16,7 +17,55 @@ def get_quantizer_from_config(keras_layer, quantizer_var):
         return QKerasPO2Quantizer(quantizer_config)
     else:
         return QKerasQuantizer(quantizer_config)
+    
+@keras_handler('QBidirectional')
+def parse_qbirectional_layer(keras_layer, input_names, input_shapes, data_reader):
 
+    if keras_layer['config']['merge_mode'] != 'concat':
+        raise Exception('Only concat mode is supported for Bidirectional layers')
+    
+    if keras_layer['config']['layer']['class_name'] == 'QGRU':
+        layer, output_shape = parse_qgru_layer(keras_layer['config']['layer'], input_names, input_shapes, data_reader)
+    else:
+        raise Exception('Only QGRU is supported for Bidirectional layers')
+    
+    layer['name'] = keras_layer['config']['name']
+    layer['subclass_name'] = layer['class_name']
+    layer['class_name'] = 'QBidirectional'
+    layer['merge_mode'] = keras_layer['config']['merge_mode']
+    layer['sub_n_out'] = output_shape[-1]
+    layer['sub_n_state'] = output_shape[-1]
+    output_shape[-1] = output_shape[-1] * 2
+    layer['n_out'] = output_shape[-1]
+    return layer, output_shape
+
+@keras_handler('QGRU')
+def parse_qgru_layer(keras_layer, input_names, input_shapes, data_reader):
+
+    layer, output_shape = parse_rnn_layer(keras_layer, input_names, input_shapes, data_reader)
+    if 'class_name' in keras_layer['config']['recurrent_activation'].keys():
+        if 'quantized' in keras_layer['config']['recurrent_activation']['class_name']:
+            layer['recurrent_activation_quantizer'] = keras_layer['config']['recurrent_activation']
+            layer['recurrent_activation'] = keras_layer['config']['recurrent_activation']['class_name'].replace('quantized_', 'hard_')
+    if 'class_name' in keras_layer['config']['activation'].keys():
+        if 'quantized' in keras_layer['config']['activation']['class_name']:
+            layer['activation_quantizer'] = keras_layer['config']['activation']
+            layer['activation'] = keras_layer['config']['activation']['class_name'].replace('quantized_', 'hard_')
+    layer['state_quantizer'] = get_quantizer_from_config(keras_layer, 'state')
+    layer['recurrent_bias_quantizer'] = get_quantizer_from_config(keras_layer, 'recurrent')
+    layer['recurrent_weight_quantizer'] = get_quantizer_from_config(keras_layer, 'recurrent')
+    layer['weight_quantizer'] = get_quantizer_from_config(keras_layer, 'kernel')
+    if keras_layer['config']['bias_quantizer'] is not None:
+        layer['bias_quantizer'] = get_quantizer_from_config(keras_layer, 'bias')
+    else:
+        layer['bias_quantizer'] = None
+
+    layer['slope'] = 0.5  # the default values in QKeras
+    layer['shift'] = 0.5
+    # Quartus seems to have trouble if the width is 1.
+    layer['slope_prec'] = FixedPrecisionType(width=2, integer=0, signed=False)
+    layer['shift_prec'] = FixedPrecisionType(width=2, integer=0, signed=False)
+    return layer, output_shape
 
 @keras_handler('QDense')
 def parse_qdense_layer(keras_layer, input_names, input_shapes, data_reader):
@@ -49,7 +98,6 @@ def parse_qconv_layer(keras_layer, input_names, input_shapes, data_reader):
 
     return layer, output_shape
 
-
 @keras_handler('QActivation')
 def parse_qactivation_layer(keras_layer, input_names, input_shapes, data_reader):
     assert keras_layer['class_name'] == 'QActivation'
@@ -63,7 +111,6 @@ def parse_qactivation_layer(keras_layer, input_names, input_shapes, data_reader)
         'binary',
         'ternary',
     ]
-
     layer = parse_default_keras_layer(keras_layer, input_names)
 
     activation_config = keras_layer['config']['activation']

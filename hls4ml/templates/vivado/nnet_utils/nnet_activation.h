@@ -21,6 +21,24 @@ struct activ_config {
     // Internal data type definitions
     typedef ap_fixed<18, 8> table_t;
 };
+typedef ap_fixed<18, 8> table_t;
+struct hard_activ_config {
+    // IO size
+    static const unsigned n_in = 10;
+
+    // Internal info
+
+    // Resource reuse info
+    static const unsigned io_type = io_parallel;
+    static const unsigned reuse_factor = 1;
+    static const table_t slope;
+    static const table_t shift;
+    // Internal data type definitions
+
+};
+
+const table_t hard_activ_config::slope = 0.5;
+const table_t hard_activ_config::shift = 0.5;
 
 // *************************************************
 //       LINEAR Activation -- See Issue 53

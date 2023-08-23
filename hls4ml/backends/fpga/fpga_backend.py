@@ -9,6 +9,7 @@ import numpy as np
 from hls4ml.backends.backend import Backend
 from hls4ml.model.attributes import ChoiceAttribute, ConfigurableAttribute, TypeAttribute
 from hls4ml.model.layers import (
+    Bidirectional,
     GRU,
     LSTM,
     Activation,
@@ -59,6 +60,7 @@ class FPGABackend(Backend):
             Pooling2D,
             GlobalPooling1D,
             GlobalPooling2D,
+            Bidirectional,
             SimpleRNN,
             LSTM,
             GRU,
@@ -181,6 +183,14 @@ class FPGABackend(Backend):
             n_in_recr = layer.get_attr('n_out')
             n_out_recr = n_out
             return n_in, n_out, n_in_recr, n_out_recr
+        
+        if 'Bidirectional' in layer.class_name:
+            if 'GRU' or 'QGRU' in layer.get_attr('subclass_name'):
+                n_in = layer.get_attr('n_in')
+                n_out = layer.get_attr('n_out') * 3 // 2
+                n_in_recr = layer.get_attr('n_out') // 2
+                n_out_recr = n_out
+                return n_in, n_out, n_in_recr, n_out_recr
 
         raise Exception(f'Cannot get mult size for layer {layer.name} ({layer.class_name})')
 

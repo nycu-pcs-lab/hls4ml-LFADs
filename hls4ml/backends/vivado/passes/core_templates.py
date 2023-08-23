@@ -24,7 +24,7 @@ dense_config_template = """struct config{index} : nnet::dense_config {{
 
 dense_function_template = 'nnet::dense<{input_t}, {output_t}, {config}>({input}, {output}, {w}, {b});'
 
-dense_include_list = ['nnet_utils/nnet_dense.h', 'nnet_utils/nnet_dense_compressed.h', 'nnet_utils/nnet_dense_stream.h']
+dense_include_list = ['nnet_utils/nnet_dense.h', 'nnet_utils/nnet_dense_compressed.h', 'nnet_utils/nnet_dense_stream.h', 'nnet_utils/nnet_dense_array_stream.h']
 
 
 class DenseConfigTemplate(LayerConfigTemplate):
@@ -109,6 +109,7 @@ class BatchNormalizationFunctionTemplate(FunctionCallTemplate):
 
 activ_config_template = """struct {type}_config{index} : nnet::activ_config {{
     static const unsigned n_in = {n_in};
+    static const unsigned n_chan = {n_chan};
     static const unsigned table_size = {table_size};
     static const unsigned io_type = nnet::{iotype};
     static const unsigned reuse_factor = {reuse};
@@ -139,7 +140,7 @@ softmax_config_template = """struct {type}_config{index} : nnet::activ_config {{
 activ_function_template = 'nnet::{activation}<{input_t}, {output_t}, {config}>({input}, {output});'
 param_activ_function_template = 'nnet::{activation}<{input_t}, {output_t}, {config}>({input}, {param}, {output});'
 
-activ_include_list = ['nnet_utils/nnet_activation.h', 'nnet_utils/nnet_activation_stream.h']
+activ_include_list = ['nnet_utils/nnet_activation.h', 'nnet_utils/nnet_activation_stream.h', 'nnet_utils/nnet_activation_array_stream.h']
 
 
 class ActivationConfigTemplate(LayerConfigTemplate):
@@ -150,6 +151,7 @@ class ActivationConfigTemplate(LayerConfigTemplate):
     def format(self, node):
         params = self._default_config_params(node)
         params['type'] = node.get_attr('activation')
+        params['n_chan'] = node.get_input_variable().dim_names[-1]
 
         return self.template.format(**params)
 

@@ -6,6 +6,9 @@ from hls4ml.backends.fpga.fpga_types import (
     VivadoInplaceArrayVariableConverter,
     VivadoInplaceStreamVariableConverter,
     VivadoStreamVariableConverter,
+
+    VivadoInplaceArrayStreamVariableConverter,
+    VivadoArrayStreamVariableConverter
 )
 from hls4ml.model.optimizer import GlobalOptimizerPass
 from hls4ml.model.types import InplaceTensorVariable
@@ -20,6 +23,9 @@ class TransformTypes(GlobalOptimizerPass):
         self.inplace_stream_var_converter = VivadoInplaceStreamVariableConverter(type_converter=self.type_converter)
         self.weight_var_converter = StaticWeightVariableConverter(type_converter=self.type_converter)
 
+        self.inplace_array_stream_var_converter = VivadoInplaceArrayStreamVariableConverter(type_converter=self.type_converter)
+        self.array_stream_var_converter = VivadoArrayStreamVariableConverter(type_converter=self.type_converter)
+
     def transform(self, model, node):
         io_type = node.model.config.get_config_value('IOType')
 
@@ -29,6 +35,11 @@ class TransformTypes(GlobalOptimizerPass):
                     new_var = self.inplace_stream_var_converter.convert(var)
                 else:
                     new_var = self.stream_var_converter.convert(var)
+            elif io_type == 'io_array_stream':
+                if isinstance(var, InplaceTensorVariable):
+                    new_var = self.inplace_array_stream_var_converter.convert(var)
+                else:
+                    new_var = self.array_stream_var_converter.convert(var)
             elif io_type == 'io_serial':
                 new_var = self.array_var_converter.convert(var, pragma='stream')
             elif io_type == 'io_parallel':

@@ -77,7 +77,6 @@ class QuartusWriter(Writer):
         rf = int(layer.get_attr('reuse_factor', 1))
         weight_header = '#ifdef __INTELFPGA_COMPILER__\n'
 
-        weight_size = 0
         if isinstance(layer, (Conv2D, Conv2DBatchnorm)):
             weight_size = (
                 layer.get_attr('impl_filt_height')

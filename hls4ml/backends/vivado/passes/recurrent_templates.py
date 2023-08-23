@@ -13,22 +13,41 @@ recr_mult_config_template = """struct config{index} : nnet::dense_config {{
     static const unsigned n_nonzeros = {nonzeros};
     static const unsigned multiplier_limit = DIV_ROUNDUP(n_in * n_out, reuse_factor) - n_zeros / reuse_factor;
     static const bool store_weights_in_bram = false;
-    typedef {accum_t.name} accum_t;
+    typedef {accum_dense_t.name} accum_t;
     typedef {bias_t.name} bias_t;
     typedef {weight_t.name} weight_t;
-    typedef {index_t.name} index_t;
+    typedef ap_{index_t} index_t;
     template<class x_T, class y_T>
     using product = nnet::product::{product_type}<x_T, y_T>;
 }};\n"""
 
 # activation templates
+hard_activ_config_template = """struct {type}_config{index} : nnet::hard_activ_config{{
+    static const unsigned n_in = {n_in};
+    static const {slope_t.name} slope;
+    static const {shift_t.name} shift;
+    static const unsigned io_type = nnet::{iotype};
+    static const unsigned reuse_factor = {reuse};
+}};
+const {slope_t.name} {type}_config{index}::slope = {slope};
+const {shift_t.name} {type}_config{index}::shift = {shift};\n"""
+
+recr_hard_activ_config_template = """struct {type}_config{index}_recr  : nnet::hard_activ_config {{
+    static const unsigned n_in = {n_in};
+    static const {slope_t.name} slope;
+    static const {shift_t.name} shift;
+    static const unsigned io_type = nnet::{iotype};
+    static const unsigned reuse_factor = {reuse};
+}};
+const {slope_t.name} {type}_config{index}_recr::slope = {slope};
+const {shift_t.name} {type}_config{index}_recr::shift = {shift};\n"""
 
 activ_config_template = """struct {type}_config{index} : nnet::activ_config {{
     static const unsigned n_in = {n_in};
     static const unsigned table_size = {table_size};
     static const unsigned io_type = nnet::{iotype};
     static const unsigned reuse_factor = {reuse};
-    typedef {table_t.name} table_t;
+    typedef ap_{table_t} table_t;
 }};\n"""
 
 recr_activ_config_template = """struct {type}_config{index}_recr : nnet::activ_config {{
@@ -36,12 +55,13 @@ recr_activ_config_template = """struct {type}_config{index}_recr : nnet::activ_c
     static const unsigned table_size = {table_size};
     static const unsigned io_type = nnet::{iotype};
     static const unsigned reuse_factor = {reuse};
-    typedef {table_t.name} table_t;
+    typedef ap_{table_t} table_t;
 }};\n"""
 
 # LSTM + GRU templates
 
 recr_config_template = """struct config{index} : nnet::{recr_type}_config {{
+    typedef {accum_dense_t.name} accum_dense_t;
     typedef {accum_t.name} accum_t;
     typedef {weight_t.name} weight_t;  // Matrix
     typedef {bias_t.name} bias_t;  // Vector
@@ -62,11 +82,17 @@ recr_config_template = """struct config{index} : nnet::{recr_type}_config {{
     static const unsigned reuse_factor = {reuse};
     static const bool store_weights_in_bram = false;
     static const bool use_static = {static};
+    static const bool use_initial = {initial_state};
+    typedef {state_t} state_t;
+    typedef {act} act_t;
+    typedef {recr_act} recr_act_t;
 }};\n"""
 
 recr_function_template = 'nnet::{recr_type}_stack<{input_t}, {output_t}, {config}>({input}, {output}, {w}, {wr}, {b}, {br});'
 
-recr_include_list = ['nnet_utils/nnet_recurrent.h']
+recr_init_function_template = 'nnet::{recr_type}_stack<{input_t}, {input2_t}, {output_t}, {config}>({input}, {input_2}, {output}, {w}, {wr}, {b}, {br});'
+
+recr_include_list = ['nnet_utils/nnet_recurrent.h', 'nnet_utils/nnet_recurrent_array_stream.h']
 
 
 class RecurrentConfigTemplate(LayerConfigTemplate):
@@ -79,9 +105,11 @@ class RecurrentConfigTemplate(LayerConfigTemplate):
         self.mult2_template = recr_mult_config_template
 
     def format(self, node):
-
         params = self._default_config_params(node)
-
+        if 'hard' in node.get_attr('activation'):
+            self.act_template = hard_activ_config_template
+        if 'hard' in node.get_attr('recurrent_activation'):
+            self.recr_act_template = recr_hard_activ_config_template
         params['n_in'] = node.get_input_variable().dim_names[1]
         params['n_sequence'] = node.get_input_variable().dim_names[0]
         if node.get_attr('return_sequences'):
@@ -100,6 +128,9 @@ class RecurrentConfigTemplate(LayerConfigTemplate):
         params['static'] = 'true' if node.attributes['static'] else 'false'
         params['recr_type'] = node.class_name.lower()
         params['RECR_TYPE'] = node.class_name
+        params['state_t'] = 'state{}_t'.format(node.index)
+        params['recr_act'] = 'recr_act{}_t'.format(node.index)
+        params['act'] = 'act{}_t'.format(node.index)
 
         if node.class_name == 'LSTM':
             n_recr_mult = 4
@@ -165,6 +196,12 @@ class RecurrentFunctionTemplate(FunctionCallTemplate):
 
     def format(self, node):
         params = self._default_function_params(node)
+        if node.get_attr('initial_state') == 1:
+            self.template = recr_init_function_template
+            params['input_2'] = node.get_input_variable(node.inputs[1]).name
+            params['input2_t'] = node.get_input_variable(node.inputs[1]).type.name
+        else:
+            self.template = recr_function_template
         params['w'] = node.get_weights('weight').name
         params['b'] = node.get_weights('bias').name
         params['wr'] = node.get_weights('recurrent_weight').name
@@ -172,5 +209,5 @@ class RecurrentFunctionTemplate(FunctionCallTemplate):
         params['activation'] = node.get_attr('activation')
         params['recurrent_activation'] = node.get_attr('recurrent_activation')
         params['recr_type'] = node.class_name.lower()
-
+        print(params)
         return self.template.format(**params)

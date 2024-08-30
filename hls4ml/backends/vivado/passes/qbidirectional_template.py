@@ -133,7 +133,7 @@ bidirectional_config_template = """struct config{index} : nnet::bidirectional_co
     static const unsigned merge_mode = nnet::{merge_mode};
 }};\n"""
 
-recr_function_template = 'nnet::bidirectional<{input_t}, {output_t}, {config}>({input}, {output}, {bw}, {bwr}, {bb}, {bbr}, {fw}, {fwr}, {fb}, {fbr});'
+recr_function_template = 'nnet::bidirectional_array<{input_t}, {output_t}, {config}>({input}, {output}, {bw}, {bwr}, {bb}, {bbr}, {fw}, {fwr}, {fb}, {fbr});'
 
 recr_include_list = ['nnet_utils/nnet_bidirectional.h']
 

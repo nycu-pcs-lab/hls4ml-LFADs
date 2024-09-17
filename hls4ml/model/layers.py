@@ -1140,6 +1140,7 @@ class GRU(Layer):
 
         # 202230510 get all needed bits for calculating
         at = self.attributes['activation_quantizer']['config']['bits']
+        ai = 1 # sign for tanh
         rat = self.attributes['recurrent_activation_quantizer']['config']['bits']
         si = self.attributes['state_quantizer'].hls_type.integer
         st = self.attributes['state_quantizer'].hls_type.fractional + si
@@ -1148,7 +1149,7 @@ class GRU(Layer):
         from math import log2, ceil
         nadd = int(ceil(log2(max(self.attributes['n_in'], self.attributes['n_out']))))
 
-        act_prec = FixedPrecisionType(width=at, integer=1, signed=True, rounding_mode='RND_CONV', saturation_mode='SAT')
+        act_prec = FixedPrecisionType(width=at, integer=ai, signed=True, rounding_mode='RND_CONV', saturation_mode='SAT')
         recr_act_prec = FixedPrecisionType(width=rat, integer=0, signed=False, rounding_mode='RND_CONV', saturation_mode='SAT')
         state_prec = FixedPrecisionType(width=st, integer=si, signed=True, rounding_mode='RND_CONV', saturation_mode='SAT')
         self.set_attr('act_t', NamedType(f'act{self.index}_t', precision=act_prec))
@@ -1162,7 +1163,14 @@ class GRU(Layer):
         shift_t = NamedType(f'shift{index}_t', precision=shift_prec)
         self.set_attr('slope_t', slope_t)
         self.set_attr('shift_t', shift_t)
-        self.add_output_variable(shape, dims, precision=FixedPrecisionType(width=rat+max(st,at)+1, integer=si+1, signed=True))
+        #self.add_output_variable(shape, dims, precision=FixedPrecisionType(width=rat+max(st,at)+1, integer=si+1, signed=True))
+        #self.add_output_variable(shape, dims, precision=FixedPrecisionType(width=max(rat + st, rat + at)+3, integer=si+ai+2, signed=True))
+        #print("use 64 output")
+        #self.add_output_variable(shape, dims)
+        #print("output as default")
+        #print(f"at = {at}, rat = {rat}, si = {si}, st = {st}, ri = {ri}, rt = {rt}")
+        #p = input("pause")
+        self.add_output_variable(shape, dims, precision=FixedPrecisionType(width=32, integer=16, signed=True))
         accum_dense_t = NamedType(f'accum_dense{index}_t', precision=FixedPrecisionType(width=st+rt+nadd, integer=si+ri+nadd, signed=True))
         self.set_attr('accum_dense_t', accum_dense_t)
         accum_t = NamedType(f'accum{index}_t', precision=FixedPrecisionType(width=st+rt+nadd+rat, integer=si+ri+nadd, signed=True))
@@ -1252,6 +1260,7 @@ class Bidirectional(Layer):
 
         # 202230510 get all needed bits for calculating
         at = self.attributes['activation_quantizer']['config']['bits']
+        ai = 1 # sign for tanh
         rat = self.attributes['recurrent_activation_quantizer']['config']['bits']
         si = self.attributes['state_quantizer'].hls_type.integer
         st = self.attributes['state_quantizer'].hls_type.fractional + si
@@ -1260,7 +1269,7 @@ class Bidirectional(Layer):
         from math import log2, ceil
         nadd = int(ceil(log2(max(self.attributes['n_in'], self.attributes['n_out']))))
 
-        act_prec = FixedPrecisionType(width=at, integer=1, signed=True, rounding_mode='RND_CONV', saturation_mode='SAT')
+        act_prec = FixedPrecisionType(width=at, integer=ai, signed=True, rounding_mode='RND_CONV', saturation_mode='SAT')
         recr_act_prec = FixedPrecisionType(width=rat, integer=0, signed=False, rounding_mode='RND_CONV', saturation_mode='SAT')
         state_prec = FixedPrecisionType(width=st, integer=si, signed=True, rounding_mode='RND_CONV', saturation_mode='SAT')
         self.set_attr('act_t', NamedType(f'act{self.index}_t', precision=act_prec))
@@ -1274,7 +1283,10 @@ class Bidirectional(Layer):
         shift_t = NamedType(f'shift{index}_t', precision=shift_prec)
         self.set_attr('slope_t', slope_t)
         self.set_attr('shift_t', shift_t)
-        self.add_output_variable(shape, dims, precision=FixedPrecisionType(width=rat+max(st,at)+1, integer=si+1, signed=True))
+        #self.add_output_variable(shape, dims, precision=FixedPrecisionType(width=rat+max(st,at)+1, integer=si+1, signed=True))
+        self.add_output_variable(shape, dims, precision=FixedPrecisionType(width=32, integer=16, signed=True))
+        #self.add_output_variable(shape, dims, precision=FixedPrecisionType(width=max(rat + st, rat + at)+1, integer=si+ai+1, signed=True))
+        #self.add_output_variable(shape, dims, precision=None)
         accum_dense_t = NamedType(f'accum_dense{index}_t', precision=FixedPrecisionType(width=st+rt+nadd, integer=si+ri+nadd, signed=True))
         self.set_attr('accum_dense_t', accum_dense_t)
         accum_t = NamedType(f'accum{index}_t', precision=FixedPrecisionType(width=st+rt+nadd+rat, integer=si+ri+nadd, signed=True))

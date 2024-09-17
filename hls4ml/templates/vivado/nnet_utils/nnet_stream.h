@@ -17,6 +17,18 @@ struct broadcast_config {
 };
 
 template <class data_T, class res_T, int N>
+void clone_stream(hls::stream<data_T> data[N], hls::stream<res_T> res1[N], hls::stream<res_T> res2[N]) {
+CloneLoop:
+    for (int i = 0; i < N; i++) {
+        #pragma HLS UNROLL
+        res_T out_data = data[i].read();
+
+        res1[i].write(out_data);
+        res2[i].write(out_data);
+    }
+}
+
+template <class data_T, class res_T, int N>
 void clone_stream(hls::stream<data_T> &data, hls::stream<res_T> &res1, hls::stream<res_T> &res2) {
 CloneLoop:
     for (int i = 0; i < N / data_T::size; i++) {

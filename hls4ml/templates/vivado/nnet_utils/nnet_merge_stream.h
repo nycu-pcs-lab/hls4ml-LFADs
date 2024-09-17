@@ -31,6 +31,34 @@ AddLoop:
 }
 
 template <class input1_T, class input2_T, class res_T, typename CONFIG_T>
+void add(hls::stream<input1_T> data1[CONFIG_T::n_elem], hls::stream<input2_T> data2[CONFIG_T::n_elem], hls::stream<res_T> res[CONFIG_T::n_elem]) {
+//assert(input1_T::size == input2_T::size && input1_T::size == res_T::size);
+
+    input1_T in_data1[CONFIG_T::n_elem];
+    #pragma HLS ARRAY_RESHAPE variable=in_data1 complete
+    input2_T in_data2[CONFIG_T::n_elem];
+    #pragma HLS ARRAY_RESHAPE variable=in_data2 complete
+    res_T out_data[CONFIG_T::n_elem];
+    #pragma HLS ARRAY_RESHAPE variable=out_data complete
+
+    #pragma HLS PIPELINE
+    AddLoop1:for (int j = 0; j < CONFIG_T::n_elem; j++) {
+        #pragma HLS UNROLL
+        in_data1[j] = data1[j].read();
+    }
+    AddLoop2:for (int j = 0; j < CONFIG_T::n_elem; j++) {
+        #pragma HLS UNROLL
+        in_data2[j] = data2[j].read();
+    }
+
+    AddPack:for (int j = 0; j < CONFIG_T::n_elem; j++) {
+            #pragma HLS UNROLL
+            out_data[j] = in_data1[j] + in_data2[j];
+            res[j].write(out_data[j]);
+        }
+}
+
+template <class input1_T, class input2_T, class res_T, typename CONFIG_T>
 void subtract(hls::stream<input1_T> &data1, hls::stream<input2_T> &data2, hls::stream<res_T> &res) {
     assert(input1_T::size == input2_T::size && input1_T::size == res_T::size);
 
@@ -74,6 +102,35 @@ MultiplyLoop:
 
         res.write(out_data);
     }
+}
+
+template <class input1_T, class input2_T, class res_T, typename CONFIG_T>
+void multiply(hls::stream<input1_T> data1[CONFIG_T::n_elem], hls::stream<input2_T> data2[CONFIG_T::n_elem], hls::stream<res_T> res[CONFIG_T::n_elem]) {
+
+    input1_T in_data1[CONFIG_T::n_elem];
+    #pragma HLS ARRAY_RESHAPE variable=in_data1 complete
+    input2_T in_data2[CONFIG_T::n_elem];
+    #pragma HLS ARRAY_RESHAPE variable=in_data2 complete
+    res_T out_data[CONFIG_T::n_elem];
+    #pragma HLS ARRAY_RESHAPE variable=out_data complete
+
+
+    #pragma HLS PIPELINE II=1
+    
+    MultiplyLoop1:for (int j = 0; j < CONFIG_T::n_elem; j++) {
+        #pragma HLS UNROLL
+        in_data1[j] = data1[j].read();
+    }
+    MultiplyLoop2:for (int j = 0; j < CONFIG_T::n_elem; j++) {
+        #pragma HLS UNROLL
+        in_data2[j] = data2[j].read();
+    }
+
+    MultiplyPack:for (int j = 0; j < CONFIG_T::n_elem; j++) {
+            #pragma HLS UNROLL
+            out_data[j] = in_data1[j] * in_data2[j];
+            res[j].write(out_data[j]);
+        }
 }
 
 template <class input1_T, class input2_T, class res_T, typename CONFIG_T>

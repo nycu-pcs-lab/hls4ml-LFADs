@@ -176,6 +176,7 @@ class BidirectionalConfigTemplate(LayerConfigTemplate):
         params['recr_type'] = node.get_attr('subclass_name').lower()[1:]
         params['RECR_TYPE'] = node.get_attr('subclass_name')[1:]
         params['state_t'] = 'state{}_t'.format(node.index)
+
         if 'hard' in node.get_attr('recurrent_activation'):
             params['recr_act'] = 'recr_act{}_t'.format(node.index)
         if 'hard' in node.get_attr('activation'):

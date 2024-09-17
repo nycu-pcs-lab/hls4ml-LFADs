@@ -38,7 +38,7 @@ template<class data_T, class init_T, class res_T, typename CONFIG_T>
 
     data_T data_in[CONFIG_T::n_in];
     #pragma HLS ARRAY_RESHAPE variable=data_in complete
-    bool reset_state = false;
+    bool reset_state = true;
 
     DataPropagation: for(int i_in = 0; i_in < CONFIG_T::n_sequence; i_in++) {
       if (CONFIG_T::n_sequence*CONFIG_T::n_in / CONFIG_T::n_in > 1) {

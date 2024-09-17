@@ -243,11 +243,15 @@ class FPGABackend(Backend):
         if chosen_rf not in valid_rf:
             closest_rf = self.get_closest_reuse_factor(valid_rf, chosen_rf)
             valid_rf_str = ','.join(map(str, valid_rf))
-            print(
-                f'WARNING: Invalid ReuseFactor={chosen_rf} in layer "{layer.name}".'
-                f'Using ReuseFactor={closest_rf} instead. Valid ReuseFactor(s): {valid_rf_str}.'
-            )
-            layer.set_attr(attribute, closest_rf)
+            #print(
+            #    f'WARNING: Invalid ReuseFactor={chosen_rf} in layer "{layer.name}".'
+            #    f'Using ReuseFactor={closest_rf} instead. Valid ReuseFactor(s): {valid_rf_str}.'
+            #)
+            #layer.set_attr(attribute, closest_rf)
+            
+            # 240917 crchen use n_in as rf
+            layer.set_attr(attribute, n_in)
+            print(f'Using ReuseFactor=N_in: {n_in}.')
 
     def set_target_reuse_factor(self, layer):
         # TODO update target reuse factor for the RNN layers

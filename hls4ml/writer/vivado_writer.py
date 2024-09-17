@@ -489,8 +489,9 @@ class VivadoWriter(Writer):
             ):
                 newline = line
                 for out in model_outputs:
-                    newline += indent + 'nnet::print_result<{}, {}>({}, std::cout, true);\n'.format(
-                        out.type.name, out.size_cpp(), out.name
+                    output_channel_size = out.shape[-1]
+                    newline += indent + 'nnet::print_result_array<{}, {}, {}>({}, std::cout, true);\n'.format(
+                        out.type.name, out.size_cpp(), output_channel_size, out.name
                     )
             else:
                 newline = line

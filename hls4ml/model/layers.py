@@ -1254,7 +1254,6 @@ class Bidirectional(Layer):
         self.add_weights_variable(name='forward_recurrent_bias', quantizer=self.get_attr('bias_quantizer'), var_name='fbr{index}', data=forward_biases[1])
 
         backward_biases = self.model.get_weights_data(self.name, ['backward','bias'])
-        print(backward_biases)
         self.add_weights_variable(name='backward_bias', quantizer=self.get_attr('bias_quantizer'), var_name='bb{index}', data=backward_biases[0])
         self.add_weights_variable(name='backward_recurrent_bias', quantizer=self.get_attr('bias_quantizer'), var_name='bbr{index}', data=backward_biases[1])
 

@@ -251,7 +251,7 @@ class FPGABackend(Backend):
             
             # 240917 crchen use n_in as rf
             layer.set_attr(attribute, n_in)
-            print(f'Using ReuseFactor=N_in: {n_in}.')
+            print(f'Using ReuseFactor=N_in: {n_in}')
 
     def set_target_reuse_factor(self, layer):
         # TODO update target reuse factor for the RNN layers

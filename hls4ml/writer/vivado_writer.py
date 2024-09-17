@@ -436,17 +436,21 @@ class VivadoWriter(Writer):
                 offset = 0
                 for inp in model_inputs:
                     newline += '      ' + inp.definition_cpp() + ';\n'
-                    newline += '      nnet::copy_data<float, {}, {}, {}>(in, {});\n'.format(
-                        inp.type.name, offset, inp.size_cpp(), inp.name
+                    input_channel_size = inp.shape[-1]
+                    newline += '      nnet::copy_data_array<float, {}, {}, {}, {}>(in, {});\n'.format(
+                        inp.type.name, offset, inp.size_cpp(), input_channel_size, inp.name
                     )
+                    #print(inp.__dict__)
+                    #p = input("inp pause")                   
                     offset += inp.size()
                 for out in model_outputs:
                     newline += '      ' + out.definition_cpp() + ';\n'
             elif '// hls-fpga-machine-learning insert zero' in line:
                 newline = line
                 for inp in model_inputs:
+                    input_channel_size = inp.shape[-1]
                     newline += '    ' + inp.definition_cpp() + ';\n'
-                    newline += f'    nnet::fill_zero<{inp.type.name}, {inp.size_cpp()}>({inp.name});\n'
+                    newline += f'    nnet::fill_zero_array<{inp.type.name}, {inp.size_cpp()}, {input_channel_size}>({inp.name});\n'
                 for out in model_outputs:
                     newline += '    ' + out.definition_cpp() + ';\n'
             elif '// hls-fpga-machine-learning insert top-level-function' in line:
@@ -472,9 +476,13 @@ class VivadoWriter(Writer):
             elif '// hls-fpga-machine-learning insert tb-output' in line:
                 newline = line
                 for out in model_outputs:
-                    newline += indent + 'nnet::print_result<{}, {}>({}, fout);\n'.format(
-                        out.type.name, out.size_cpp(), out.name
+                    output_channel_size = out.shape[-1]
+                    newline += indent + 'nnet::print_result_array<{}, {}, {}>({}, fout);\n'.format(
+                        out.type.name, out.size_cpp(), output_channel_size, out.name
                     )  # TODO enable this
+                    #print(out.__dict__)
+                    #p = input("inp pause")
+                   
             elif (
                 '// hls-fpga-machine-learning insert output' in line
                 or '// hls-fpga-machine-learning insert quantized' in line

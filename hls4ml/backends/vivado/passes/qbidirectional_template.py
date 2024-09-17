@@ -218,7 +218,10 @@ class BidirectionalConfigTemplate(LayerConfigTemplate):
         mult_params1['product_type'] = get_backend('vivado').product_type(
             node.get_input_variable().type.precision, node.get_weights('forward_weight').type.precision
         )
-        mult_params1['reuse'] = node.attributes['recurrent_reuse_factor']
+        # 240917 crchen set reuse as nin
+        #mult_params1['reuse'] = node.attributes['recurrent_reuse_factor']
+        mult_params1['reuse'] = mult_params1['n_in']
+        
         mult_params1['index'] = str(node.index) + '_1'
         mult_params1['nzeros'] = node.get_weights('forward_weight').nzeros
         mult_params1['nonzeros'] = node.get_weights('forward_weight').nonzeros
@@ -231,7 +234,10 @@ class BidirectionalConfigTemplate(LayerConfigTemplate):
         mult_params2['product_type'] = get_backend('vivado').product_type(
             node.get_input_variable().type.precision, node.get_weights('forward_recurrent_weight').type.precision
         )
-        mult_params2['reuse'] = node.attributes['recurrent_reuse_factor']
+        # 240917 crchen set reuse as nin
+        #mult_params2['reuse'] = node.attributes['recurrent_reuse_factor']
+        mult_params2['reuse'] = mult_params2['n_in']
+        
         mult_params2['index'] = str(node.index) + '_2'
         mult_params2['nzeros'] = node.get_weights('forward_recurrent_weight').nzeros
         mult_params2['nonzeros'] = node.get_weights('forward_recurrent_weight').nonzeros

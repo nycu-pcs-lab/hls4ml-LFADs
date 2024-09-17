@@ -209,5 +209,4 @@ class RecurrentFunctionTemplate(FunctionCallTemplate):
         params['activation'] = node.get_attr('activation')
         params['recurrent_activation'] = node.get_attr('recurrent_activation')
         params['recr_type'] = node.class_name.lower()
-        print(params)
         return self.template.format(**params)
